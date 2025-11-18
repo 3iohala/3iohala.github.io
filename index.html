@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+    <meta charset="utf-8" />
+    <title>Stotis TK – Terminalas</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- XTerm iš CDN -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm/css/xterm.css" />
+    <script src="https://cdn.jsdelivr.net/npm/xterm/lib/xterm.js"></script>
+
+    <!-- Tavo custom CSS -->
+    <!-- Jei CSS faile pavadinimas kitas – pakeisk čia -->
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- Emergency overlay -->
+<div id="emergency-overlay"></div>
+
+<!-- Terminal -->
+<div id="terminal"></div>
+
+<!-- Sound effects -->
+<!-- Laikau, kad audio.mp3 yra šalia index.html -->
+<audio id="ringSound" src="audio.mp3"></audio>
+
+<script>
+    /* ======================================
+       TERMINAL INIT
+       ====================================== */
+    const term = new Terminal({
+        cursorBlink: true,
+        fontFamily: "Courier New, monospace",
+        fontSize: 17,
+        convertEol: true
+    });
+
+    term.open(document.getElementById("terminal"));
+
+    /* Kad AudioContext pradėtų veikti po pirmo user click (naršyklės limitai) */
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    document.body.addEventListener("click", () => {
+        if (audioCtx.state === "suspended") {
+            audioCtx.resume();
+        }
+    }, { once: true });
+
+    /* ======================================
+       RETRO CLICK SOUND (typing)
+       ====================================== */
+    function playClick() {
+        try {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+
+            osc.type = "square";
+            osc.frequency.value = 920;
+
+            gain.gain.value = 0.12;
+            gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.07);
+
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.07);
+        } catch (e) {
+            // jeigu naršyklė supyksta dėl audio – tiesiog tyliai ignoruojam
+        }
+    }
+
+    /* ======================================
+       TYPEWRITER EFFECT
+       ====================================== */
+    async function typeWriter(text, speed = 22) {
+        for (let char of text) {
+            term.write(char);
+            if (char !== "\n" && char.trim() !== "") playClick();
+            await new Promise(res => setTimeout(res, speed));
+        }
+        term.write("\n");
+    }
+
+    /* ======================================
+       SENAS KINAS (skambutis + alert)
+       ====================================== */
+    async function playRing() {
+        const ring = document.getElementById("ringSound");
+        if (!ring) return;
+        ring.currentTime = 0;
+        try {
+            await ring.play();
+        } catch (e) {
+            // jei autoplay neleidžiamas – ignoruojam
+        }
+    }
+
+    async function cinematicAlert() {
+        const lines = [
+            "",
+            "[!!! ALERT: INCOMING TRANSMISSION DETECTED !!!]",
+            "[SIGNAL SOURCE: UNKNOWN STATION MODULE]",
+            "[ESTABLISHING COMMS LINK...]",
+            "[STABILIZING AUDIO FEED...]",
+            ""
+        ];
+        for (let line of lines) {
+            term.writeln(line);
+            await new Promise(res => setTimeout(res, 250));
+        }
+    }
+
+    function flashTerminal() {
+        const t = document.getElementById("terminal");
+        t.style.boxShadow = "0 0 30px red, inset 0 0 20px red";
+        t.style.borderColor = "red";
+        setTimeout(() => {
+            t.style.boxShadow = "";
+            t.style.borderColor = "";
+        }, 600);
+    }
+
+    /* ======================================
+       NEW FX
+       ====================================== */
+    function glitchScreen() {
+        const t = document.getElementById("terminal");
+        t.style.transform = "skew(1deg) translateX(3px)";
+        t.style.filter = "contrast(200%) brightness(140%)";
+        setTimeout(() => {
+            t.style.transform = "";
+            t.style.filter = "";
+        }, 120);
+    }
+
+    function playStaticNoise(duration = 900) {
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const bufferSize = ctx.sampleRate;
+            const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+            const data = buffer.getChannelData(0);
+
+            for (let i = 0; i < bufferSize; i++)
+                data[i] = (Math.random() * 2 - 1) * 0.35;
+
+            const noise = ctx.createBufferSource();
+            noise.buffer = buffer;
+
+            const filter = ctx.createBiquadFilter();
+            filter.type = "bandpass";
+            filter.frequency.value = 800;
+
+            noise.connect(filter);
+            filter.connect(ctx.destination);
+
+            noise.start();
+            noise.stop(ctx.currentTime + duration / 1000);
+        } catch (e) {
+            // jei nesigauna su audio – nieko tokio
+        }
+    }
+
+    function speakDigital(text) {
+        try {
+            const msg = new SpeechSynthesisUtterance(text);
+            msg.lang = "en-US";
+            msg.pitch = 0.3;
+            msg.rate = 0.9;
+            msg.volume = 1.0;
+            const voices = speechSynthesis.getVoices();
+            const v = voices.find(v =>
+                v.name.includes("Zarvox") || v.name.includes("Cellos")
+            );
+            if (v) msg.voice = v;
+            speechSynthesis.speak(msg);
+        } catch (e) {
+            // jei naršyklė nepalaiko – tyla
+        }
+    }
+
+    function emergencyOverlayOn() {
+        const el = document.getElementById("emergency-overlay");
+        el.classList.add("flash");
+        setTimeout(() => {
+            el.classList.remove("flash");
+        }, 6000);
+    }
+
+    /* ======================================
+       PERVESTA PYTHON LOGIKA -> JS
+       ====================================== */
+
+    // failai = { "pav": [pw, content] }
+    const failai = {
+        "failas1.txt": [
+            null,
+            "Egzistuoja toks 'skambutis.txt', tačiau jam reikia slaptažodžio. Jo slaptažodis yra MIDI2026."
+        ],
+        "skambutis.txt": [
+            "MIDI2026",
+            `> ATIDAROMAS FAILAS: stotis/irasai/skambutis.txt
+> STATUSAS: 84% ATKURTA
+> 2025/11/13 SKAMBUČIO ĮRAŠO TRANSKRIPCIJA
+
+[00:00:02] Antulė Gintarytė: Ei, daktare, durys vėl užsidarė. Atidaryk.
+[00:00:05] Dr. Gėlė Saulytė: Ir vėl? ████... Primink durų kodą, prašau?
+[00:00:08] Antulė Gintarytė: Ugh, kas darosi šitoj ████████ stoty... Durų kodas yra D67.
+[00:00:11] Dr. Gėlė Saulytė: Tuojau atidarysiu.
+[00:00:33] Antulė Gintarytė: [Girdima, kaip atsidaro durys.]
+[00:00:38] Antulė Gintarytė: Pagaliau.
+[00:00:40] Dr. Gėlė Saulytė: Nežinau... Čia jau apie ██ dienas gličina. Aš klausiau elektriko - jis galvoja, kad kažkas iš vidaus gadina sistemas, bet aš manau, kad čia nesamonė.
+[00:00:46] Antulė Gintarytė: Na, man ██████, išsaiškinkit dėl savęs. Tu stoties vadovė, aš tik kartais užsuku.
+[00:00:51] Dr. Gėlė Saulytė: Gerai, gerai... Beje, šių durų slaptažodis šiaip yra B3H74, jei vėl užstrigs.
+[00:00:57] Antulė Gintarytė: Ačiū. Tikiuosi nereikės naudot, vis tiek ██████ planuoju grįžti atgal į stotį B.I.U.R.A.S. Iki.
+[00:01:02] Dr. Gėlė Saulytė: Viso.
+
+> FAILO PABAIGA`
+        ]
+    };
+
+    // durys_sarasas = { "kodas": [pw, closedBool] }
+    const durys_sarasas = {
+        "D67": ["B3H74", true],
+        "D29": [null, true],
+        "D84": [null, true],
+        "D01": [null, true],
+        "D09": [null, true],
+        "D46": [null, true]
+    };
+
+    function komandos() {
+        const viesi_failai = Object.entries(failai)
+            .filter(([_, [pw, _content]]) => pw === null)
+            .map(([name]) => name);
+
+        const viesos_durys = Object.keys(durys_sarasas).join(", ");
+
+        return `
+ KKOMANDŲ SĄRAŠAS:
+
+.komandos       : Parodo šias komandas.
+.skaityti       : Atidaro failą. Šiuo metu egzistuojantys vieši failai: ${viesi_failai.join(", ")}.
+.atidaryti_duris: Atidaro duris stotyje. Kai kurios durys reikalauja slaptažodžio. Šiuo metu prieinamos durys: ${viesos_durys}
+`;
+    }
+
+    function skaityti(failas) {
+        if (!(failas in failai)) {
+            return "> Error 68: Neegzistuoja toks failas.";
+        }
+
+        const [pw, content] = failai[failas];
+
+        if (pw !== null) {
+            return {
+                ask: `> ĮVESKITE SLAPTAŽODĮ failui ${failas}:`,
+                type: "file_pw",
+                target: failas
+            };
+        }
+
+        return content;
+    }
+
+    function skaityti_su_pw(failas, entered) {
+        const [pw, content] = failai[failas];
+        if (entered !== pw) {
+            return "> Neteisingas slaptažodis.";
+        }
+        return content;
+    }
+
+    function atidaryti(durys) {
+        if (!(durys in durys_sarasas)) {
+            return "> Error 68: Neegzistuoja tokios durys.";
+        }
+
+        const [pw, _closed] = durys_sarasas[durys];
+
+        if (pw !== null) {
+            return {
+                ask: `> ĮVESKITE SLAPTAŽODĮ durims ${durys}:`,
+                type: "door_pw",
+                target: durys
+            };
+        }
+
+        return flip_durys(durys);
+    }
+
+    function flip_durys(durys) {
+        const [pw, closed] = durys_sarasas[durys];
+        durys_sarasas[durys][1] = !closed;
+
+        if (closed) {
+            return "Durys atidarytos.";
+        } else {
+            return "Durys uždarytos.";
+        }
+    }
+
+    function atidaryti_su_pw(durys, entered) {
+        const [pw, _closed] = durys_sarasas[durys];
+        if (entered !== pw) {
+            return "> Neteisingas slaptažodis.";
+        }
+        return flip_durys(durys);
+    }
+
+    function processCommand(cmd) {
+        const parts = cmd.trim().split(/\s+/);
+        if (parts.length === 0 || parts[0] === "") return "";
+
+        const c = parts[0];
+        const arg = parts.slice(1).join(" ");
+
+        if (c === ".komandos") {
+            return komandos();
+        }
+
+        if (c === ".skaityti") {
+            if (!arg) return "> Error 69: Nėra failo pavadinimo.";
+            return skaityti(arg);
+        }
+
+        if (c === ".skaityti_pw") {
+            const split = arg.split(/\s+/);
+            if (split.length !== 2) return "> Klaida: reikia nurodyti failą ir slaptažodį.";
+            const [failas, pw] = split;
+            return skaityti_su_pw(failas, pw);
+        }
+
+        if (c === ".atidaryti_duris") {
+            if (!arg) return "> Error 69: Nėra durų kodo.";
+            return atidaryti(arg);
+        }
+
+        if (c === ".atidaryti_pw") {
+            const split = arg.split(/\s+/);
+            if (split.length !== 2) return "> Klaida: reikia nurodyti durų kodą ir slaptažodį.";
+            const [kodas, pw] = split;
+            return atidaryti_su_pw(kodas, pw);
+        }
+
+        return "> Error 67: rasyt ismok";
+    }
+
+    /* ======================================
+       BOOT SEQUENCE
+       ====================================== */
+    async function bootSequence() {
+        const lines = [
+            "[BOOTING STATION-TK SYSTEM KERNEL v3.7]",
+            "[LOADING MODULE: AIRLOCK_CONTROL........OK]",
+            "[LOADING MODULE: POWER_GRID_MONITOR.....OK]",
+            "[LOADING MODULE: INTERNAL_COMMS..........OK]",
+            "[LOADING MODULE: BIOSENSOR_ARRAY.........OK]",
+            "[ESTABLISHING USER TERMINAL SESSION]",
+            "",
+            "Sveiki! Įveskite .komandos"
+        ];
+        for (let line of lines) {
+            term.writeln(line);
+            await new Promise(res => setTimeout(res, 140));
+        }
+        term.prompt = () => term.write("\r> ");
+        term.prompt();
+    }
+
+    bootSequence();
+
+    /* ======================================
+       INPUT SYSTEM
+       ====================================== */
+    let buffer = "";
+    let passwordMode = false;
+    let passwordType = null;
+    let passwordTarget = null;
+
+    // SEND COMMAND be serverio – viskas lokaliai
+    async function sendCommand(cmd) {
+        const result = processCommand(cmd);
+
+        if (typeof result === "string") {
+            return { type: "text", text: result };
+        }
+        // dict su ask/type/target (PW atvejai)
+        return result;
+    }
+
+    term.onData(async data => {
+
+        if (data === "\r") {
+            const cmd = buffer;
+            buffer = "";
+            term.writeln("");
+
+            if (passwordMode) {
+                let finalCmd = "";
+
+                if (passwordType === "door")
+                    finalCmd = `.atidaryti_pw ${passwordTarget} ${cmd}`;
+                else if (passwordType === "file")
+                    finalCmd = `.skaityti_pw ${passwordTarget} ${cmd}`;
+
+                passwordMode = false;
+                passwordType = null;
+                passwordTarget = null;
+
+                let out = await sendCommand(finalCmd);
+                handleOutput(out);
+                term.prompt();
+                return;
+            }
+
+            let out = await sendCommand(cmd);
+            handleOutput(out);
+            term.prompt();
+            return;
+        }
+
+        if (data === "\u007F") {
+            if (buffer.length > 0) {
+                buffer = buffer.slice(0, -1);
+                term.write("\b \b");
+            }
+            return;
+        }
+
+        buffer += data;
+        term.write(data);
+    });
+
+    /* ======================================
+       OUTPUT HANDLER
+       ====================================== */
+    function handleOutput(out) {
+
+        if (out.type === "text") {
+
+            const text = out.text.trim();
+
+            // Kai durys atsidaro
+            if (text.includes("atidarytos")) {
+
+                // Seni efektai
+                flashTerminal();
+                playRing();
+                cinematicAlert();
+
+                // Nauji efektai
+                glitchScreen();
+                playStaticNoise();
+                speakDigital("Incoming transmission detected");
+                emergencyOverlayOn();
+
+                typeWriter(text + "\n", 40);
+                return;
+            }
+
+            // Ilgesnis tekstas – su rašymo efektu
+            if (text.length > 200) typeWriter(text, 35);
+            else term.writeln(text);
+
+            return;
+        }
+
+        // fallback string
+        if (typeof out === "string") {
+            term.writeln(out);
+            return;
+        }
+
+        // password request
+        if (out.ask) {
+            term.writeln(out.ask);
+            passwordMode = true;
+            passwordType = out.type === "door_pw" ? "door" : "file";
+            passwordTarget = out.target;
+            return;
+        }
+    }
+</script>
+
+</body>
+</html>
