@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+
+<!-- XTerm iš CDN -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm/css/xterm.css" />
+<script src="https://cdn.jsdelivr.net/npm/xterm/lib/xterm.js"></script>
+
+<!-- Custom CSS -->
+<link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+
+<!-- Emergency overlay -->
+<div id="emergency-overlay"></div>
+
+<!-- Terminal -->
+<div id="terminal"></div>
+
+<!-- Sound effects -->
+<audio id="ringSound" src="/static/audio.mp3"></audio>
+
+<script>
+/* ======================================
+   INITIALIZE TERMINAL
+   ====================================== */
+const term = new Terminal({
+    cursorBlink: true,
+    fontFamily: "Courier New, monospace",
+    fontSize: 17,
+    convertEol: true
+});
+
+term.open(document.getElementById("terminal"));
+
+/* ======================================
+   RETRO CLICK SOUND (typing)
+   ====================================== */
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+function playClick() {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+
+    osc.type = "square";
+    osc.frequency.value = 920;
+
+    gain.gain.value = 0.12;
+    gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.07);
+
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.07);
+}
+
+/* ======================================
+   TYPEWRITER EFFECT
+   ====================================== */
+async function typeWriter(text, speed = 22) {
+    for (let char of text) {
+        term.write(char);
+        if (char !== "\n" && char.trim() !== "") playClick();
+        await new Promise(res => setTimeout(res, speed));
+    }
+    term.write("\n");
+}
+
+/* ======================================
+   OLD CINEMATIC (keep)
+   ====================================== */
+async function playRing() {
+    const ring = document.getElementById("ringSound");
+    ring.currentTime = 0;
+    await ring.play();
+}
+
+async function cinematicAlert() {
+    const lines = [
+        "",
+        "[!!! ALERT: INCOMING TRANSMISSION DETECTED !!!]",
+        "[SIGNAL SOURCE: UNKNOWN STATION MODULE]",
+        "[ESTABLISHING COMMS LINK...]",
+        "[STABILIZING AUDIO FEED...]",
+        ""
+    ];
+    for (let line of lines) {
+        term.writeln(line);
+        await new Promise(res => setTimeout(res, 250));
+    }
+}
+
+function flashTerminal() {
+    const t = document.getElementById("terminal");
+    t.style.boxShadow = "0 0 30px red, inset 0 0 20px red";
+    t.style.borderColor = "red";
+    setTimeout(() => {
+        t.style.boxShadow = "";
+        t.style.borderColor = "";
+    }, 600);
+}
+
+/* ======================================
+   NEW EFFECTS (added on top)
+   ====================================== */
+function glitchScreen() {
+    const t = document.getElementById("terminal");
+    t.style.transform = "skew(1deg) translateX(3px)";
+    t.style.filter = "contrast(200%) brightness(140%)";
+    setTimeout(() => {
+        t.style.transform = "";
+        t.style.filter = "";
+    }, 120);
+}
+
+function playStaticNoise(duration = 900) {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const bufferSize = ctx.sampleRate;
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+
+    for (let i = 0; i < bufferSize; i++)
+        data[i] = (Math.random() * 2 - 1) * 0.35;
+
+    const noise = ctx.createBufferSource();
+    noise.buffer = buffer;
+
+    const filter = ctx.createBiquadFilter();
+    filter.type = "bandpass";
+    filter.frequency.value = 800;
+
+    noise.connect(filter);
+    filter.connect(ctx.destination);
+
+    noise.start();
+    noise.stop(ctx.currentTime + duration / 1000);
+}
+
+function speakDigital(text) {
+    const msg = new SpeechSynthesisUtterance(text);
+    msg.lang = "en-US";
+    msg.pitch = 0.3;
+    msg.rate = 0.9;
+    msg.volume = 1.0;
+    msg.voice = speechSynthesis.getVoices().find(v =>
+        v.name.includes("Zarvox") || v.name.includes("Cellos")
+    ) || speechSynthesis.getVoices()[0];
+    speechSynthesis.speak(msg);
+}
+
+function emergencyOverlayOn() {
+    document.getElementById("emergency-overlay").classList.add("flash");
+    setTimeout(() => {
+        document.getElementById("emergency-overlay").classList.remove("flash");
+    }, 6000);
+}
+
+/* ======================================
+   BOOT SEQUENCE
+   ====================================== */
+async function bootSequence() {
+    const lines = [
+        "[BOOTING STATION-TK SYSTEM KERNEL v3.7]",
+        "[LOADING MODULE: AIRLOCK_CONTROL........OK]",
+        "[LOADING MODULE: POWER_GRID_MONITOR.....OK]",
+        "[LOADING MODULE: INTERNAL_COMMS..........OK]",
+        "[LOADING MODULE: BIOSENSOR_ARRAY.........OK]",
+        "[ESTABLISHING USER TERMINAL SESSION]",
+        "",
+        "Sveiki! Įveskite .komandos"
+    ];
+    for (let line of lines) {
+        term.writeln(line);
+        await new Promise(res => setTimeout(res, 140));
+    }
+    term.prompt = () => term.write("\r> ");
+    term.prompt();
+}
+
+bootSequence();
+
+/* ======================================
+   INPUT SYSTEM
+   ====================================== */
+let buffer = "";
+let passwordMode = false;
+let passwordType = null;
+let passwordTarget = null;
+
+async function sendCommand(cmd) {
+    const res = await fetch("/command", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ cmd })
+    });
+    return await res.json();
+}
+
+term.onData(async data => {
+
+    if (data === "\r") {
+        const cmd = buffer;
+        buffer = "";
+        term.writeln("");
+
+        if (passwordMode) {
+            let finalCmd = "";
+
+            if (passwordType === "door")
+                finalCmd = `.atidaryti_pw ${passwordTarget} ${cmd}`;
+            else if (passwordType === "file")
+                finalCmd = `.skaityti_pw ${passwordTarget} ${cmd}`;
+
+            passwordMode = false;
+            passwordType = null;
+            passwordTarget = null;
+
+            let out = await sendCommand(finalCmd);
+            handleOutput(out);
+            term.prompt();
+            return;
+        }
+
+        let out = await sendCommand(cmd);
+        handleOutput(out);
+        term.prompt();
+        return;
+    }
+
+    if (data === "\u007F") {
+        if (buffer.length > 0) {
+            buffer = buffer.slice(0, -1);
+            term.write("\b \b");
+        }
+        return;
+    }
+
+    buffer += data;
+    term.write(data);
+});
+
+/* ======================================
+   OUTPUT HANDLER (COMBINED)
+   ====================================== */
+function handleOutput(out) {
+
+    if (out.type === "text") {
+
+        const text = out.text.trim();
+
+        // When doors open
+        if (text.includes("atidarytos")) {
+
+            // OLD effects (keep)
+            flashTerminal();
+            playRing();
+            cinematicAlert();
+
+            // NEW effects (add)
+            glitchScreen();
+            playStaticNoise();
+            speakDigital("Incoming transmission detected");
+            emergencyOverlayOn();
+
+            typeWriter(text + "\n", 40);
+            return;
+        }
+
+        // Normal long text
+        if (text.length > 200) typeWriter(text, 35);
+        else term.writeln(text);
+
+        return;
+    }
+
+    // fallback string
+    if (typeof out === "string") {
+        term.writeln(out);
+        return;
+    }
+
+    // password request
+    if (out.ask) {
+        term.writeln(out.ask);
+        passwordMode = true;
+        passwordType = out.type === "door_pw" ? "door" : "file";
+        passwordTarget = out.target;
+        return;
+    }
+}
+</script>
+
+</body>
+</html>
