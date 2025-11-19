@@ -274,8 +274,14 @@
             return "> Error 68: Neegzistuoja tokios durys.";
         }
 
+        // Tik D67 apskritai reaguoja į šią komandą
+        if (durys !== "D67") {
+            return "> Šios durys nereaguoja. Jos užrakintos iš sistemos pusės.";
+        }
+
         const [pw, _closed] = durys_sarasas[durys];
 
+        // Kadangi D67 turi slaptažodį, paprašom jo
         if (pw !== null) {
             return {
                 ask: `> ĮVESKITE SLAPTAŽODĮ durims ${durys}:`,
@@ -284,10 +290,16 @@
             };
         }
 
+        // Teoriškai nepasieksim šitos vietos, bet paliekam ateičiai
         return flip_durys(durys);
     }
 
     function flip_durys(durys) {
+        // Saugumo dėlei – tik D67 gali keisti būseną
+        if (durys !== "D67") {
+            return "> Šios durys nereaguoja.";
+        }
+
         const [pw, closed] = durys_sarasas[durys];
         durys_sarasas[durys][1] = !closed;
 
@@ -299,12 +311,20 @@
     }
 
     function atidaryti_su_pw(durys, entered) {
+        // Tik D67 priima slaptažodį
+        if (durys !== "D67") {
+            return "> Neteisingas durų kodas arba durys užrakintos.";
+        }
+
         const [pw, _closed] = durys_sarasas[durys];
+
         if (entered !== pw) {
             return "> Neteisingas slaptažodis.";
         }
+
         return flip_durys(durys);
     }
+
 
     function processCommand(cmd) {
         const parts = cmd.trim().split(/\s+/);
