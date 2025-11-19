@@ -10,7 +10,6 @@
     <script src="https://cdn.jsdelivr.net/npm/xterm/lib/xterm.js"></script>
 
     <!-- Tavo custom CSS -->
-    <!-- Jei CSS faile pavadinimas kitas – pakeisk čia -->
     <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -22,7 +21,6 @@
 <div id="terminal"></div>
 
 <!-- Sound effects -->
-<!-- Laikau, kad audio.mp3 yra šalia index.html -->
 <audio id="ringSound" src="audio.mp3"></audio>
 
 <script>
@@ -347,6 +345,62 @@
     }
 
     /* ======================================
+       MATRIX REŽIMO KINTAMIEJI
+       ====================================== */
+    let matrixRunning = false;
+    let matrixInterval = null;
+    let countdownInterval = null;
+
+    function randomNumberRow(length = 70) {
+        const chars = "0123456789";
+        let row = "";
+        for (let i = 0; i < length; i++) {
+            if (Math.random() < 0.15) {
+                row += " ";
+            } else {
+                row += chars[Math.floor(Math.random() * chars.length)];
+            }
+        }
+        return row;
+    }
+
+    function startMatrixCountdown(totalSeconds = 60) {
+        if (matrixRunning) return;
+        matrixRunning = true;
+
+        // Išvalom ekraną
+        term.reset();
+        term.writeln("=== EVACUATION TIMER STARTED ===");
+        term.writeln("");
+
+        let timeLeft = totalSeconds;
+
+        // Laikmatis (kas 1 sekundę)
+        countdownInterval = setInterval(() => {
+            if (timeLeft < 0) return;
+
+            if (timeLeft === 0) {
+                clearInterval(countdownInterval);
+                clearInterval(matrixInterval);
+                matrixRunning = false;
+
+                term.writeln("");
+                term.writeln(">>> LAIKAS BAIGĖSI. SISTEMA UŽRAKINTA. <<<");
+                term.writeln(">>> CONNECTION LOST... <<<");
+                return;
+            }
+
+            term.writeln(`LIKĘS LAIKAS: ${timeLeft}s`);
+            timeLeft--;
+        }, 1000);
+
+        // „Matrix“ skaičių lietus
+        matrixInterval = setInterval(() => {
+            term.writeln(randomNumberRow(70));
+        }, 80);
+    }
+
+    /* ======================================
        BOOT SEQUENCE
        ====================================== */
     async function bootSequence() {
@@ -390,6 +444,10 @@
     }
 
     term.onData(async data => {
+        // Kol Matrix režimas – nepriimam įvesties
+        if (matrixRunning) {
+            return;
+        }
 
         if (data === "\r") {
             const cmd = buffer;
@@ -455,7 +513,11 @@
                 speakDigital("Incoming transmission detected");
                 emergencyOverlayOn();
 
-                typeWriter(text + "\n", 40);
+                // Po teksto – Matrix režimas su laikmačiu
+                typeWriter(text + "\n", 40).then(() => {
+                    startMatrixCountdown(60); // 60s – gali keist
+                });
+
                 return;
             }
 
