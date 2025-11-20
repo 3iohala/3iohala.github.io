@@ -290,12 +290,10 @@
             };
         }
 
-        // Teoriškai nepasieksim šitos vietos, bet paliekam ateičiai
         return flip_durys(durys);
     }
 
     function flip_durys(durys) {
-        // Saugumo dėlei – tik D67 gali keisti būseną
         if (durys !== "D67") {
             return "> Šios durys nereaguoja.";
         }
@@ -303,15 +301,11 @@
         const [pw, closed] = durys_sarasas[durys];
         durys_sarasas[durys][1] = !closed;
 
-        if (closed) {
-            return "Durys atidarytos.";
-        } else {
-            return "Durys uždarytos.";
-        }
+        if (closed) return "Durys atidarytos.";
+        return "Durys uždarytos.";
     }
 
     function atidaryti_su_pw(durys, entered) {
-        // Tik D67 priima slaptažodį
         if (durys !== "D67") {
             return "> Neteisingas durų kodas arba durys užrakintos.";
         }
@@ -325,7 +319,6 @@
         return flip_durys(durys);
     }
 
-
     function processCommand(cmd) {
         const parts = cmd.trim().split(/\s+/);
         if (parts.length === 0 || parts[0] === "") return "";
@@ -333,9 +326,7 @@
         const c = parts[0];
         const arg = parts.slice(1).join(" ");
 
-        if (c === ".komandos") {
-            return komandos();
-        }
+        if (c === ".komandos") return komandos();
 
         if (c === ".skaityti") {
             if (!arg) return "> Error 69: Nėra failo pavadinimo.";
@@ -365,59 +356,48 @@
     }
 
     /* ======================================
-       MATRIX REŽIMO KINTAMIEJI
+       MATRIX REŽIMO KINTAMIEJI + FINAL KODAS
        ====================================== */
     let matrixRunning = false;
     let matrixInterval = null;
-    let countdownInterval = null;
+
+    const FINAL_CODE = "At3iv15";
+    let awaitingFinalCode = false;
+    let gameFinished = false;
 
     function randomNumberRow(length = 70) {
         const chars = "0123456789";
         let row = "";
         for (let i = 0; i < length; i++) {
-            if (Math.random() < 0.15) {
-                row += " ";
-            } else {
-                row += chars[Math.floor(Math.random() * chars.length)];
-            }
+            if (Math.random() < 0.15) row += " ";
+            else row += chars[Math.floor(Math.random() * chars.length)];
         }
         return row;
     }
 
-    function startMatrixCountdown(totalSeconds = 60) {
-        if (matrixRunning) return;
+    // Matrix skaičiai X sekundžių, tada prašo kodo
+    function startMatrixSequence(matrixSeconds = 12) {
+        if (matrixRunning || gameFinished) return;
         matrixRunning = true;
 
-        // Išvalom ekraną
         term.reset();
-        term.writeln("=== EVACUATION TIMER STARTED ===");
+        term.writeln("=== SISTEMOS ATKŪRIMO REŽIMAS ===");
+        term.writeln("[DIAGNOSTIKA / KODO SINCHRONIZACIJA...]");
         term.writeln("");
 
-        let timeLeft = totalSeconds;
-
-        // Laikmatis (kas 1 sekundę)
-        countdownInterval = setInterval(() => {
-            if (timeLeft < 0) return;
-
-            if (timeLeft === 0) {
-                clearInterval(countdownInterval);
-                clearInterval(matrixInterval);
-                matrixRunning = false;
-
-                term.writeln("");
-                term.writeln(">>> LAIKAS BAIGĖSI. SISTEMA UŽRAKINTA. <<<");
-                term.writeln(">>> CONNECTION LOST... <<<");
-                return;
-            }
-
-            term.writeln(`LIKĘS LAIKAS: ${timeLeft}s`);
-            timeLeft--;
-        }, 1000);
-
-        // „Matrix“ skaičių lietus
         matrixInterval = setInterval(() => {
             term.writeln(randomNumberRow(70));
         }, 80);
+
+        setTimeout(() => {
+            clearInterval(matrixInterval);
+            matrixRunning = false;
+            awaitingFinalCode = true;
+
+            term.writeln("");
+            term.writeln(">>> ĮVESKITE KODĄ <<<");
+            term.write("\r> ");
+        }, matrixSeconds * 1000);
     }
 
     /* ======================================
@@ -452,28 +432,43 @@
     let passwordType = null;
     let passwordTarget = null;
 
-    // SEND COMMAND be serverio – viskas lokaliai
     async function sendCommand(cmd) {
         const result = processCommand(cmd);
-
-        if (typeof result === "string") {
-            return { type: "text", text: result };
-        }
-        // dict su ask/type/target (PW atvejai)
+        if (typeof result === "string") return { type: "text", text: result };
         return result;
     }
 
     term.onData(async data => {
+        if (gameFinished) return;
+
         // Kol Matrix režimas – nepriimam įvesties
-        if (matrixRunning) {
-            return;
-        }
+        if (matrixRunning) return;
 
         if (data === "\r") {
             const cmd = buffer;
             buffer = "";
             term.writeln("");
 
+            // FINAL KODO REŽIMAS
+            if (awaitingFinalCode) {
+                const code = cmd.trim();
+
+                if (code === FINAL_CODE) {
+                    awaitingFinalCode = false;
+                    gameFinished = true;
+
+                    term.writeln("✅ KODAS PRIIMTAS.");
+                    await typeWriter(">>> SĖKMINGAI SUTVARKĖTE KOSMINĮ LAIVĄ. SISTEMOS STABILIOS. <<<", 22);
+                    term.writeln("");
+                    term.writeln("[MISSION STATUS: COMPLETE]");
+                } else {
+                    term.writeln("> Neteisingas kodas. Bandykite dar kartą.");
+                    term.write("\r> ");
+                }
+                return;
+            }
+
+            // Slaptažodžio režimai (failai / durys)
             if (passwordMode) {
                 let finalCmd = "";
 
@@ -492,6 +487,7 @@
                 return;
             }
 
+            // Įprastos komandos
             let out = await sendCommand(cmd);
             handleOutput(out);
             term.prompt();
@@ -533,9 +529,9 @@
                 speakDigital("Incoming transmission detected");
                 emergencyOverlayOn();
 
-                // Po teksto – Matrix režimas su laikmačiu
+                // Po teksto – Matrix režimas, tada finalinis kodas
                 typeWriter(text + "\n", 40).then(() => {
-                    startMatrixCountdown(60); // 60s – gali keist
+                    startMatrixSequence(12); // kiek sekundžių bėgs matrix skaičiai
                 });
 
                 return;
