@@ -5,28 +5,24 @@
     <title>Stotis TK – Terminalas</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-    <!-- XTerm iš CDN -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm/css/xterm.css" />
     <script src="https://cdn.jsdelivr.net/npm/xterm/lib/xterm.js"></script>
 
-    <!-- Tavo custom CSS -->
     <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
-<!-- Emergency overlay -->
+
 <div id="emergency-overlay"></div>
 
-<!-- Terminal -->
+
 <div id="terminal"></div>
 
-<!-- Sound effects -->
+
 <audio id="ringSound" src="audio.mp3"></audio>
 
 <script>
-    /* ======================================
-       TERMINAL INIT
-       ====================================== */
+
     const term = new Terminal({
         cursorBlink: true,
         fontFamily: "Courier New, monospace",
@@ -36,7 +32,7 @@
 
     term.open(document.getElementById("terminal"));
 
-    /* Kad AudioContext pradėtų veikti po pirmo user click (naršyklės limitai) */
+
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     document.body.addEventListener("click", () => {
         if (audioCtx.state === "suspended") {
@@ -44,9 +40,7 @@
         }
     }, { once: true });
 
-    /* ======================================
-       RETRO CLICK SOUND (typing)
-       ====================================== */
+
     function playClick() {
         try {
             const osc = audioCtx.createOscillator();
@@ -63,14 +57,10 @@
 
             osc.start();
             osc.stop(audioCtx.currentTime + 0.07);
-        } catch (e) {
-            // jeigu naršyklė supyksta dėl audio – tiesiog tyliai ignoruojam
-        }
+        } catch (e) {}
     }
 
-    /* ======================================
-       TYPEWRITER EFFECT
-       ====================================== */
+
     async function typeWriter(text, speed = 22) {
         for (let char of text) {
             term.write(char);
@@ -80,18 +70,11 @@
         term.write("\n");
     }
 
-    /* ======================================
-       SENAS KINAS (skambutis + alert)
-       ====================================== */
     async function playRing() {
         const ring = document.getElementById("ringSound");
         if (!ring) return;
         ring.currentTime = 0;
-        try {
-            await ring.play();
-        } catch (e) {
-            // jei autoplay neleidžiamas – ignoruojam
-        }
+        try { await ring.play(); } catch (e) {}
     }
 
     async function cinematicAlert() {
@@ -119,9 +102,7 @@
         }, 600);
     }
 
-    /* ======================================
-       NEW FX
-       ====================================== */
+
     function glitchScreen() {
         const t = document.getElementById("terminal");
         t.style.transform = "skew(1deg) translateX(3px)";
@@ -154,9 +135,7 @@
 
             noise.start();
             noise.stop(ctx.currentTime + duration / 1000);
-        } catch (e) {
-            // jei nesigauna su audio – nieko tokio
-        }
+        } catch (e) {}
     }
 
     function speakDigital(text) {
@@ -172,9 +151,7 @@
             );
             if (v) msg.voice = v;
             speechSynthesis.speak(msg);
-        } catch (e) {
-            // jei naršyklė nepalaiko – tyla
-        }
+        } catch (e) {}
     }
 
     function emergencyOverlayOn() {
@@ -185,11 +162,7 @@
         }, 6000);
     }
 
-    /* ======================================
-       PERVESTA PYTHON LOGIKA -> JS
-       ====================================== */
 
-    // failai = { "pav": [pw, content] }
     const failai = {
         "failas1.txt": [
             null,
@@ -217,7 +190,6 @@
         ]
     };
 
-    // durys_sarasas = { "kodas": [pw, closedBool] }
     const durys_sarasas = {
         "D67": ["B3H74", true],
         "D29": [null, true],
@@ -244,10 +216,7 @@
     }
 
     function skaityti(failas) {
-        if (!(failas in failai)) {
-            return "> Error 68: Neegzistuoja toks failas.";
-        }
-
+        if (!(failas in failai)) return "> Error 68: Neegzistuoja toks failas.";
         const [pw, content] = failai[failas];
 
         if (pw !== null) {
@@ -257,31 +226,20 @@
                 target: failas
             };
         }
-
         return content;
     }
 
     function skaityti_su_pw(failas, entered) {
         const [pw, content] = failai[failas];
-        if (entered !== pw) {
-            return "> Neteisingas slaptažodis.";
-        }
+        if (entered !== pw) return "> Neteisingas slaptažodis.";
         return content;
     }
 
     function atidaryti(durys) {
-        if (!(durys in durys_sarasas)) {
-            return "> Error 68: Neegzistuoja tokios durys.";
-        }
-
-        // Tik D67 apskritai reaguoja į šią komandą
-        if (durys !== "D67") {
-            return "> Šios durys nereaguoja. Jos užrakintos iš sistemos pusės.";
-        }
+        if (!(durys in durys_sarasas)) return "> Error 68: Neegzistuoja tokios durys.";
+        if (durys !== "D67") return "> Šios durys nereaguoja. Jos užrakintos iš sistemos pusės.";
 
         const [pw, _closed] = durys_sarasas[durys];
-
-        // Kadangi D67 turi slaptažodį, paprašom jo
         if (pw !== null) {
             return {
                 ask: `> ĮVESKITE SLAPTAŽODĮ durims ${durys}:`,
@@ -289,33 +247,22 @@
                 target: durys
             };
         }
-
         return flip_durys(durys);
     }
 
     function flip_durys(durys) {
-        if (durys !== "D67") {
-            return "> Šios durys nereaguoja.";
-        }
+        if (durys !== "D67") return "> Šios durys nereaguoja.";
 
         const [pw, closed] = durys_sarasas[durys];
         durys_sarasas[durys][1] = !closed;
 
-        if (closed) return "Durys atidarytos.";
-        return "Durys uždarytos.";
+        return closed ? "Durys atidarytos." : "Durys uždarytos.";
     }
 
     function atidaryti_su_pw(durys, entered) {
-        if (durys !== "D67") {
-            return "> Neteisingas durų kodas arba durys užrakintos.";
-        }
-
+        if (durys !== "D67") return "> Neteisingas durų kodas arba durys užrakintos.";
         const [pw, _closed] = durys_sarasas[durys];
-
-        if (entered !== pw) {
-            return "> Neteisingas slaptažodis.";
-        }
-
+        if (entered !== pw) return "> Neteisingas slaptažodis.";
         return flip_durys(durys);
     }
 
@@ -355,27 +302,24 @@
         return "> Error 67: rasyt ismok";
     }
 
-    /* ======================================
-       MATRIX REŽIMO KINTAMIEJI + FINAL KODAS
-       ====================================== */
+
     let matrixRunning = false;
     let matrixInterval = null;
 
     const FINAL_CODE = "At3iv15";
     let awaitingFinalCode = false;
+    let finalStageUnlocked = false;
     let gameFinished = false;
 
     function randomNumberRow(length = 70) {
         const chars = "0123456789";
         let row = "";
         for (let i = 0; i < length; i++) {
-            if (Math.random() < 0.15) row += " ";
-            else row += chars[Math.floor(Math.random() * chars.length)];
+            row += (Math.random() < 0.15) ? " " : chars[Math.floor(Math.random() * chars.length)];
         }
         return row;
     }
 
-    // Matrix skaičiai X sekundžių, tada prašo kodo
     function startMatrixSequence(matrixSeconds = 12) {
         if (matrixRunning || gameFinished) return;
         matrixRunning = true;
@@ -400,9 +344,7 @@
         }, matrixSeconds * 1000);
     }
 
-    /* ======================================
-       BOOT SEQUENCE
-       ====================================== */
+
     async function bootSequence() {
         const lines = [
             "[BOOTING STATION-TK SYSTEM KERNEL v3.7]",
@@ -424,9 +366,7 @@
 
     bootSequence();
 
-    /* ======================================
-       INPUT SYSTEM
-       ====================================== */
+
     let buffer = "";
     let passwordMode = false;
     let passwordType = null;
@@ -440,8 +380,6 @@
 
     term.onData(async data => {
         if (gameFinished) return;
-
-        // Kol Matrix režimas – nepriimam įvesties
         if (matrixRunning) return;
 
         if (data === "\r") {
@@ -449,26 +387,28 @@
             buffer = "";
             term.writeln("");
 
-            // FINAL KODO REŽIMAS
-            if (awaitingFinalCode) {
-                const code = cmd.trim();
+            const trimmed = cmd.trim();
 
-                if (code === FINAL_CODE) {
-                    awaitingFinalCode = false;
-                    gameFinished = true;
 
-                    term.writeln("✅ KODAS PRIIMTAS.");
-                    await typeWriter(">>> SĖKMINGAI SUTVARKĖTE KOSMINĮ LAIVĄ. SISTEMOS STABILIOS. <<<", 22);
-                    term.writeln("");
-                    term.writeln("[MISSION STATUS: COMPLETE]");
-                } else {
-                    term.writeln("> Neteisingas kodas. Bandykite dar kartą.");
-                    term.write("\r> ");
-                }
+            if (finalStageUnlocked && trimmed === FINAL_CODE) {
+                awaitingFinalCode = false;
+                gameFinished = true;
+
+                term.writeln("✅ KODAS PRIIMTAS.");
+                await typeWriter(">>> SĖKMINGAI SUTVARKĖTE KOSMINĮ LAIVĄ. SISTEMOS STABILIOS. <<<", 22);
+                term.writeln("");
+                term.writeln("[MISSION STATUS: COMPLETE]");
                 return;
             }
 
-            // Slaptažodžio režimai (failai / durys)
+
+            if (awaitingFinalCode) {
+                term.writeln("> Neteisingas kodas. Bandykite dar kartą.");
+                term.write("\r> ");
+                return;
+            }
+
+
             if (passwordMode) {
                 let finalCmd = "";
 
@@ -487,7 +427,7 @@
                 return;
             }
 
-            // Įprastos komandos
+
             let out = await sendCommand(cmd);
             handleOutput(out);
             term.prompt();
@@ -506,51 +446,43 @@
         term.write(data);
     });
 
-    /* ======================================
-       OUTPUT HANDLER
-       ====================================== */
+
     function handleOutput(out) {
-
         if (out.type === "text") {
-
             const text = out.text.trim();
 
-            // Kai durys atsidaro
+
             if (text.includes("atidarytos")) {
 
-                // Seni efektai
+                finalStageUnlocked = true;
+
                 flashTerminal();
                 playRing();
                 cinematicAlert();
 
-                // Nauji efektai
                 glitchScreen();
                 playStaticNoise();
                 speakDigital("Incoming transmission detected");
                 emergencyOverlayOn();
 
-                // Po teksto – Matrix režimas, tada finalinis kodas
                 typeWriter(text + "\n", 40).then(() => {
-                    startMatrixSequence(12); // kiek sekundžių bėgs matrix skaičiai
+                    startMatrixSequence(12);
                 });
 
                 return;
             }
 
-            // Ilgesnis tekstas – su rašymo efektu
             if (text.length > 200) typeWriter(text, 35);
             else term.writeln(text);
 
             return;
         }
 
-        // fallback string
         if (typeof out === "string") {
             term.writeln(out);
             return;
         }
 
-        // password request
         if (out.ask) {
             term.writeln(out.ask);
             passwordMode = true;
