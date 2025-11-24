@@ -382,6 +382,11 @@
         if (gameFinished) return;
         if (matrixRunning) return;
 
+        // ===== FIX #1: ignoruojam ESC sekas (rodyklės, Home/End, PgUp, Fn ir pan.) =====
+        if (data && data.charCodeAt(0) === 0x1b) {
+            return;
+        }
+
         if (data === "\r") {
             const cmd = buffer;
             buffer = "";
@@ -412,10 +417,13 @@
             if (passwordMode) {
                 let finalCmd = "";
 
+                // ===== FIX #2: trim slaptažodžius =====
+                const pwInput = cmd.trim();
+
                 if (passwordType === "door")
-                    finalCmd = `.atidaryti_pw ${passwordTarget} ${cmd}`;
+                    finalCmd = `.atidaryti_pw ${passwordTarget} ${pwInput}`;
                 else if (passwordType === "file")
-                    finalCmd = `.skaityti_pw ${passwordTarget} ${cmd}`;
+                    finalCmd = `.skaityti_pw ${passwordTarget} ${pwInput}`;
 
                 passwordMode = false;
                 passwordType = null;
